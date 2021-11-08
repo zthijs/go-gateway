@@ -16,20 +16,27 @@ import (
 	"github.com/gorilla/mux"
 )
 
+
+// Typings of a service.
 type Service struct {
 	Name   string `json:"name"`
 	Prefix string `json:"prefix"`
 	Port   string `json:"port"`
 }
 
+
+// Main function
 func main() {
 
 	blue := color.New(color.FgBlue).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
 
+	// Create a new router.
 	r := mux.NewRouter()
 	services := GetServices()
 
+
+	// For each service create a HTTP handler
 	for _, service := range services {
 
 		target, err := url.Parse(fmt.Sprintf("http://localhost:%s/", service.Port))
@@ -39,28 +46,38 @@ func main() {
 			os.Exit(0)
 		}
 
+		// Strip the path prefix.
 		r.PathPrefix(service.Prefix).Handler(http.StripPrefix(service.Prefix, httputil.NewSingleHostReverseProxy(target)))
 
 		log.Printf("Loaded %s", blue(service.Name))
 
 	}
 
+
+	// Handle default server routes.
 	r.Handle("/services.json", ServerInfo())
 	r.Handle("/ping", Ping())
 
 	var dir string
 
+
+	// Handle CDN requests.
 	flag.StringVar(&dir, "dir", "./cdn", "the directory to serve files from.")
 	flag.Parse()
 
 	r.PathPrefix("/cdn/").Handler(http.StripPrefix("/cdn/", http.FileServer(http.Dir(dir))))
 
+	// Handle logging.
 	http.Handle("/", Logging(Headers(r)))
 
+
+	// Start the server.
 	log.Fatal(http.ListenAndServe(":8080", nil))
 
 }
 
+
+// Function to retrieve al te services.
 func GetServices() []Service {
 	services := make([]Service, 3)
 	raw, err := ioutil.ReadFile("./services.json")
@@ -72,6 +89,8 @@ func GetServices() []Service {
 	return services
 }
 
+
+// Middleware for logging.
 func Logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 
@@ -86,6 +105,8 @@ func Logging(next http.Handler) http.Handler {
 	})
 }
 
+
+// Handler to set global HTTP headers.
 func Headers(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -93,6 +114,8 @@ func Headers(next http.Handler) http.Handler {
 	})
 }
 
+
+// Handler to display server info.
 func ServerInfo() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -101,6 +124,8 @@ func ServerInfo() http.Handler {
 	})
 }
 
+
+// Handler for the ping request.
 func Ping() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
